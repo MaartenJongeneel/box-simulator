@@ -191,3 +191,41 @@ for ii = 1:length(a) %For each point in contact
     cnt = cnt+2;
 end
 end
+
+function res = hat(vec)
+% Take the 3- or 6-vector representing an isomorphism of so(3) or se(3) and
+% writes this as element of so(3) or se(3). 
+%
+% INPUTS:    vec     : 3- or 6-vector. Isomorphism of so(3) or se(3)
+%
+% OUTPUTS:   res     : element of so(3) or se(3)
+%
+%% Hat operator
+if length(vec) == 3
+    res = [0, -vec(3), vec(2); vec(3), 0, -vec(1); -vec(2), vec(1), 0];
+elseif length(vec) == 6
+    skew = [0, -vec(6), vec(5); vec(6), 0, -vec(4); -vec(5), vec(4), 0];
+    v = [vec(1);vec(2);vec(3)];
+    res = [skew, v; zeros(1,4)];
+end
+end
+
+function res = vee(mat)
+% Takes an element of so(3) or se(3) and returns its isomorphism in R^n.
+%
+% INPUTS:    mat     : element of so(3) or se(3)
+%
+% OUTPUTS:   res     : 3- or 6-vector. Isomorphism of so(3) or se(3)
+%
+%% Vee operator
+
+xi1 = (mat(3,2)-mat(2,3))/2;
+xi2 = (mat(1,3)-mat(3,1))/2;
+xi3 = (mat(2,1)-mat(1,2))/2;
+
+if length(mat) == 3
+   res = [xi1; xi2; xi3];
+elseif length(mat) == 4
+   res = [mat(1:3,4);xi1;xi2;xi3]; 
+end
+end
