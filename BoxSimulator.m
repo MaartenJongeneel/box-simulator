@@ -1,4 +1,4 @@
-function [AH_B, BV_AB, FN, FT] = BoxSimulator(x,c,box)
+function [AH_B, BV_AB, FN, FT] = BoxSimulator(x,c,box,surface)
 %% Box-simulator-FixedPoint:
 %This script uses an augmented Lagrangian approach (fixed-point iteration)
 %for solving the nonlinear algebraic equations for contact impact and
@@ -32,16 +32,16 @@ function [AH_B, BV_AB, FN, FT] = BoxSimulator(x,c,box)
 %            FN                  : Normal force acting on the box over time
 %            FT                  : Tangential force acting on the box over time
 %% Constants and settings
-g     = 9.81;              %Gravitational acceleration              [m/s^2]
-Bv_AB = x.releaseLinVel;     %Linear velocity at t0 of B wrt frame A  [m/s]
-Bomg_AB = x.releaseAngVel;   %Angular velocity at t0 of B wrt frame A [m/s]
-PNfull = zeros(8,1);       %Initial guess for momenta PN            [N*s]
-PTfull(1:8,1) = {[0;0]};   %initial guess for momenta PT            [N*s]
-N = c.endtime/c.dt;     %Run to this frame                       [-]
+g     = 9.81;                                 %Gravitational acceleration              [m/s^2]
+Bv_AB = x.releaseLinVel;                      %Linear velocity at t0 of B wrt frame A  [m/s]
+Bomg_AB = x.releaseAngVel;                    %Angular velocity at t0 of B wrt frame A [m/s]
+PNfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
+PTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
+N = c.endtime/c.dt;                           %Run to this frame                       [-]
 
 %% Preallocate memory to speed up the process
-FT = NaN(8,N);
-FN = NaN(4,N); 
+FT = NaN(length(box.vertices),N);
+FN = NaN(length(box.vertices)/2,N); 
 AH_B = cell(1,N);
 E  = NaN(1,N);
 
@@ -78,17 +78,44 @@ for ii=1:N
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
 
     %And compute the gap-functions at tM column of normal contact distances
-    gN = (c.AR_C(:,3)'*(Ao_Bm + AR_Bm*box.vertices-c.Ao_C))';
+    gN=[];
+    for jj=1:length(surface)
+        %Tangential distance w.r.t surface frame
+        gT = (surface{jj}.transform(1:3,1:2)'*(Ao_Bm + AR_Bm*box.vertices-surface{jj}.transform(1:3,4)));
+        %Vertices outside the contact plane
+        vert_o = find(sum((abs(gT)<(0.5*surface{jj}.dim'))==0));
+        %Normal distance of the vertices w.r.t. the contact plane
+        gN(:,jj) = (surface{jj}.transform(1:3,3)'*(Ao_Bm + AR_Bm*box.vertices-surface{jj}.transform(1:3,4)));
+
+        %If the object is outside the plane area or underneath it, we do
+        %not take it into account in solving the contact problem
+        if (~isempty(vert_o)) 
+            gN(vert_o,jj)=0;
+        elseif (all(gN(:,jj)<0))
+            gN(:,jj)=0;
+        end
+    end
     
     %Obtain the linear and angular velocity at tA
     vA = BV_AB(:,ii);
     
     %If a gap function has been closed, contact has been made
-    IN = find(gN<0);
+    [IN,surf] = find(gN<0);
     if  IN > 0
+        if length(surf)>1
+            surf = unique(surf);
+        end
+        indx = gN<0;
         %Compute the matrix containing force directions
-        [WNA, WTA] = CompW(AR_B,c.AR_C,box.vertices(:,IN));
-        [WNM, WTM] = CompW(AR_Bm,c.AR_C,box.vertices(:,IN));
+        WNAt =[]; WTAt=[]; WNMt=[]; WTMt=[];
+        for jj=1:length(surf)
+            [WNA{jj}, WTA{jj}] = CompW(AR_B,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,indx(:,surf(jj))));
+            [WNM{jj}, WTM{jj}] = CompW(AR_Bm,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,indx(:,surf(jj))));
+            WNAt = [WNAt WNA{jj}];
+            WTAt = [WTAt WTA{jj}];
+            WNMt = [WNMt WNM{jj}];
+            WTMt = [WTMt WTM{jj}];
+        end
         
         %Give an initial guess for the normal and tangential momenta
         PN=PNfull(IN);
@@ -97,15 +124,20 @@ for ii=1:N
         converged = 0;
         while converged==0
             %Discrete time dynamics: Equations of motion
-            vE = vA + B_M_B\(term1 + WNM*PN + WTM*PT);
+            vE = vA + B_M_B\(term1 + WNMt*PN + WTMt*PT);
             
-            %Define the normal velocities at tA and tM
-            gammaNA = WNA'*vA-repmat(c.Cv_AC(3,1),length(IN),1);
-            gammaNE = WNM'*vE-repmat(c.Cv_AC(3,1),length(IN),1);
-            
-            %Define the tangential velocities at tA and tM
-            gammaTA = WTA'*vA-repmat(c.Cv_AC(1:2,1),length(IN),1);
-            gammaTE = WTM'*vE-repmat(c.Cv_AC(1:2,1),length(IN),1);
+            %Define the normal and tangential velocities at tA and tM. We
+            %substranct from the relative velocity the velocity of the
+            %contact surface.
+            gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[];
+            for jj=1:length(surf)
+                gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
+                gammaNE = [gammaNE; (WNM{jj}'*vE-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
+
+                %Define the tangential velocities at tA and tM
+                gammaTA = [gammaTA; (WTA{jj}'*vA-repmat(surface{surf(jj)}.speed(1:2,1),sum(indx(:,surf(jj))),1))];
+                gammaTE = [gammaTE; (WTM{jj}'*vE-repmat(surface{surf(jj)}.speed(1:2,1),sum(indx(:,surf(jj))),1))];
+            end
             
             %Newtons restitution law
             xiN = gammaNE+c.eN*gammaNA;

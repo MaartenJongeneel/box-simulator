@@ -7,25 +7,22 @@ dosave             = false;         %Save the trajectory (AH_B) to a .mat file
 doPlot             = true;          %Show the trajectory of the box
 MakeVideo          = false;         %Save the simulation result to video
 %% Parameters for input
-x.releaseOrientation = Rx(0);         %Release orientation of the box            [deg]
-x.releasePosition    = [0; 0; 0.3];   %Release position of the box               [m]
-x.releaseLinVel      = [0; 0; 0];     %Release linear velocity (expressed in B)  [m/s]
-x.releaseAngVel      = [3; 1; 0];     %Release angular velocity (expressed in B) [rad/s]
-c.eN                 = 0.4;           %Normal coefficient of restitution         [-]
-c.eT                 = 0.0;           %Tangential coefficient of restitution     [-]
-c.mu                 = 0.6;           %Coefficient of friction                   [-]
-l                    = 0.1;           %Length of the box                         [m]
-w                    = 0.15;          %Width of the box                          [m]
-h                    = 0.05;          %Height of the box                         [m]
-c.a                  = 0.001;         %Prox point auxilary parameter             [-]
-c.tol                = 1e-7;          %Error tol for fixed-point                 [-]
-c.m                  = 1;             %Mass of the box                           [kg]  
-c.AR_C               = Rx(10)*Ry(5);  %Orientation of the contact plane          [deg]
-c.Ao_C               = [0; 0.6; 0];   %Position of the contact plane             [m]
-c.Cv_AC              = [0; 1; 0];     %Linear velocity of the contact plane      [m/s]
-c.endtime            = 1.5;           %Runtime of the simulation                 [s]
-c.dt                 = 1/1000;        %Timestep at which the simulator runs      [s]
-step                 = 1/c.dt/100;    %Number of discrete points we skip per shown frame
+x.releaseOrientation = Rx(0);            %Release orientation of the box            [deg]
+x.releasePosition    = [0; 1.5; 0.6];    %Release position of the box               [m]
+x.releaseLinVel      = [0; 0; 0];        %Release linear velocity (expressed in B)  [m/s]
+x.releaseAngVel      = [3; 1; 0];        %Release angular velocity (expressed in B) [rad/s]
+c.eN                 = 0.4;              %Normal coefficient of restitution         [-]
+c.eT                 = 0.0;              %Tangential coefficient of restitution     [-]
+c.mu                 = 0.3;              %Coefficient of friction                   [-]
+l                    = 0.1;              %Length of the box                         [m]
+w                    = 0.15;             %Width of the box                          [m]
+h                    = 0.05;             %Height of the box                         [m]
+c.a                  = 0.001;            %Prox point auxilary parameter             [-]
+c.tol                = 1e-5;             %Error tol for fixed-point                 [-]
+c.m                  = 1;                %Mass of the box                           [kg]  
+c.endtime            = 2.0;              %Runtime of the simulation                 [s]
+c.dt                 = 1/200;            %Timestep at which the simulator runs      [s]
+step                 = ceil(1/c.dt/100); %Number of discrete points we skip per shown frame
 
 %% Create the box struct
 %Mass matrix of the box
@@ -38,20 +35,25 @@ I  = [(c.m/12)*(w^2+h^2),                 0,                  0;
 %Inertia tensor
 box.B_M_B = [Ml zeros(3,3); zeros(3,3) I];
 
-%Vertices of the box expressed in body fixed frame B (frame B at COM)
-box.vertices(:,1) = [ l/2; -w/2; -h/2];      box.vertices(:,5) = [ l/2; -w/2;  h/2];
-box.vertices(:,2) = [-l/2; -w/2; -h/2];      box.vertices(:,6) = [-l/2; -w/2;  h/2];
-box.vertices(:,3) = [-l/2;  w/2; -h/2];      box.vertices(:,7) = [-l/2;  w/2;  h/2];
-box.vertices(:,4) = [ l/2;  w/2; -h/2];      box.vertices(:,8) = [ l/2;  w/2;  h/2];
-
 %Mass
 box.mass = c.m;
 
-%% Run the dynamics
-[AH_B,BV_AB,FN,FT] = BoxSimulator(x,c,box);
+%Discretization of the box vertices
+Ndisc=4;
+[X,Y,Z]=meshgrid(linspace(-l/2,l/2,Ndisc),linspace(-w/2,w/2,Ndisc),linspace(-h/2,h/2,Ndisc));
+pbool = (abs(X(:))==l/2) | (abs(Y(:))==w/2) | (abs(Z(:))==h/2);
+box.vertices= [X(pbool)';Y(pbool)';Z(pbool)'];
 
-restPosition = AH_B{end}(1:3,4);      %Rest position of the box
-restOrientation = AH_B{end}(1:3,1:3); %Rest orientation of the box
+%% Define the impact planes
+surface{1}.transform = [Rz(30) [0; 0.5; 0]; zeros(1,3),1];
+surface{1}.speed = [0; 1; 0];
+surface{1}.dim = [1 2];
+surface{2}.transform = [Rz(0) [0; 1.5; 0.4]; zeros(1,3),1];
+surface{2}.speed = [0;-1;0];
+surface{2}.dim = [1 1];
+
+%% Run the dynamics
+[AH_B,BV_AB,FN,FT] = BoxSimulator(x,c,box,surface);
 
 %% Figures
 %Set plots to use LaTeX interface
@@ -60,18 +62,17 @@ set(groot,'defaultAxesTickLabelInterpreter','latex');
 set(groot,'defaultLegendInterpreter','latex');
 
 %Extract some values
-AR_C=c.AR_C;
-Ao_C=c.Ao_C;
 dt =c.dt;
 runtime=c.endtime;
 
-
 % Plotting options 
 %For plotting the contact surface
-ws    = 1;                 %With of the contact surface             [m]
-ls    = 1.6;               %Length of the contact surface           [m]
-surfacepoints = [0.5*ws -0.5*ws -0.5*ws 0.5*ws 0.5*ws; -0.5*ls -0.5*ls 0.5*ls 0.5*ls -0.5*ls; 0 0 0 0 0;];
-spoints = AR_C*surfacepoints +Ao_C; %Transform the vertices according to position/orientation of the surface
+for jj=1:length(surface)
+    ws    = surface{jj}.dim(1);                 %With of the contact surface             [m]
+    ls    = surface{jj}.dim(2);               %Length of the contact surface           [m]
+    surfacepoints = [0.5*ws -0.5*ws -0.5*ws 0.5*ws 0.5*ws; -0.5*ls -0.5*ls 0.5*ls 0.5*ls -0.5*ls; 0 0 0 0 0;];
+    spoints{jj} = surface{jj}.transform(1:3,1:3)*surfacepoints + surface{jj}.transform(1:3,4); %Transform the vertices according to position/orientation of the surface
+end
 
 %Vector field
 X = linspace(-20,20,205);
@@ -86,23 +87,34 @@ for xx =1:length(X)
     end
 end
 
-
 %Plot the trajectory of the box
 if doPlot
-    figure;
+    figure(Position=[200 200 400 300]);
     for ii=1:step:length(AH_B)
-        plotBox(AH_B{ii},box,[0 0 1]);
-        
+        plotBox(AH_B{ii},box,[0 0 1]);        
         
         %Plot the inclined table C
-        table3 = fill3(spoints(1,1:4),spoints(2,1:4),spoints(3,1:4),1);hold on;
-        set(table3,'FaceColor',0.8*[1 1 1],'FaceAlpha',1);
-        
-        %Plot the origin of the contact surface with its unit vectors
-        tip = [Ao_C+0.3*AR_C(:,1) Ao_C+0.3*AR_C(:,2) Ao_C+0.3*AR_C(:,3)];
-        plot3([Ao_C(1) tip(1,1)],[Ao_C(2) tip(2,1)],[Ao_C(3) tip(3,1)],'r'); hold on
-        plot3([Ao_C(1) tip(1,2)],[Ao_C(2) tip(2,2)],[Ao_C(3) tip(3,2)],'g');
-        plot3([Ao_C(1) tip(1,3)],[Ao_C(2) tip(2,3)],[Ao_C(3) tip(3,3)],'b');
+        for jj=1:length(surface)
+            table3 = fill3(spoints{jj}(1,1:4),spoints{jj}(2,1:4),spoints{jj}(3,1:4),1);hold on;
+            set(table3,'FaceColor',0.8*[1 1 1],'FaceAlpha',1);
+
+
+            %Plot the origin of the contact surface with its unit vectors
+            tip = [surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,1) surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,2) surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,3)];
+            plot3([surface{jj}.transform(1,4) tip(1,1)],[surface{jj}.transform(2,4) tip(2,1)],[surface{jj}.transform(3,4) tip(3,1)],'r'); hold on
+            plot3([surface{jj}.transform(1,4) tip(1,2)],[surface{jj}.transform(2,4) tip(2,2)],[surface{jj}.transform(3,4) tip(3,2)],'g');
+            plot3([surface{jj}.transform(1,4) tip(1,3)],[surface{jj}.transform(2,4) tip(2,3)],[surface{jj}.transform(3,4) tip(3,3)],'b');
+
+
+            %Draw the velocity of the contact plane
+            temp = (vecveltemp+surface{jj}.speed*(dt*(ii-1))); %Move the grid according to the conveyor speed
+            pbool = temp(1,:)>(-0.5*surface{jj}.dim(1))&temp(1,:)<(0.5*surface{jj}.dim(1))&temp(2,:)>(-0.5*surface{jj}.dim(2))&temp(2,:)<(0.5*surface{jj}.dim(2)); %Select the grid points inside the surface area            
+            vecvel = surface{jj}.transform(1:3,1:3)*temp+surface{jj}.transform(1:3,4); %Rotate and translate those points according to surface pose
+            speed = surface{jj}.speed/norm(surface{jj}.speed); %Get the normalized velocity vector
+            vecvel2 = surface{jj}.transform(1:3,1:3)*repmat(0.15*speed,1,length(vecvel)); %Get the end points of the velocity vector
+            
+            quiver3(vecvel(1,pbool),vecvel(2,pbool),vecvel(3,pbool),vecvel2(1,pbool),vecvel2(2,pbool),vecvel2(3,pbool),'off','color',[0 0.4470 0.7410]);
+        end
         
         %Plot the origin of the world coordinate frame
         tip = [0.3*[1;0;0] 0.3*[0;1;0] 0.3*[0;0;1]];
@@ -110,19 +122,13 @@ if doPlot
         plot3([0 tip(1,2)],[0 tip(2,2)],[0 tip(3,2)],'g');
         plot3([0 tip(1,3)],[0 tip(2,3)],[0 tip(3,3)],'b');
 
-        %Draw the velocity of the contact plane
-        vecvel = AR_C*(vecveltemp+c.Cv_AC*(dt*(ii-1)))+Ao_C;
-        speed = c.Cv_AC/norm(c.Cv_AC);
-        vecvel2 = AR_C*repmat(0.15*speed,1,length(vecvel));
-        pbool = (vecvel(1,:)>=(min(spoints(1,:))))&(vecvel(1,:)<=(max(spoints(1,:))))&(vecvel(2,:)>=(min(spoints(2,:))))&(vecvel(2,:)<=(max(spoints(2,:))))&(vecvel(3,:)>=(min(spoints(3,:))))&(vecvel(3,:)<=(max(spoints(3,:))));
-        quiver3(vecvel(1,pbool),vecvel(2,pbool),vecvel(3,pbool),vecvel2(1,pbool),vecvel2(2,pbool),vecvel2(3,pbool),'off');       
-        
         grid on;axis equal;
-        axis([-0.5 0.5 -0.5 2 -0.3 0.6]);
+        axis([-1 1 -0.7 2 -0.3 0.7]);
         xlabel('x [m]');
         ylabel('y [m]');
         zlabel('z [m]');
         view(-35,31);
+        view(-49,27);
         drawnow
         hold off
     end
@@ -139,38 +145,44 @@ if MakeVideo
 
     figure(1);
     for ii=1:step:length(AH_B)
-        plotBox(AH_B{ii},box,[0 0 1]);
-
-
+        plotBox(AH_B{ii},box,[0 0 1]);        
+        
         %Plot the inclined table C
-        table3 = fill3(spoints(1,1:4),spoints(2,1:4),spoints(3,1:4),1);hold on;
-        set(table3,'FaceColor',0.8*[1 1 1],'FaceAlpha',1);
+        for jj=1:length(surface)
+            table3 = fill3(spoints{jj}(1,1:4),spoints{jj}(2,1:4),spoints{jj}(3,1:4),1);hold on;
+            set(table3,'FaceColor',0.8*[1 1 1],'FaceAlpha',1);
 
-        %Plot the origin of the contact surface with its unit vectors
-        tip = [Ao_C+0.3*AR_C(:,1) Ao_C+0.3*AR_C(:,2) Ao_C+0.3*AR_C(:,3)];
-        plot3([Ao_C(1) tip(1,1)],[Ao_C(2) tip(2,1)],[Ao_C(3) tip(3,1)],'r'); hold on
-        plot3([Ao_C(1) tip(1,2)],[Ao_C(2) tip(2,2)],[Ao_C(3) tip(3,2)],'g');
-        plot3([Ao_C(1) tip(1,3)],[Ao_C(2) tip(2,3)],[Ao_C(3) tip(3,3)],'b');
 
+            %Plot the origin of the contact surface with its unit vectors
+            tip = [surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,1) surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,2) surface{jj}.transform(1:3,4)+0.3*surface{jj}.transform(1:3,3)];
+            plot3([surface{jj}.transform(1,4) tip(1,1)],[surface{jj}.transform(2,4) tip(2,1)],[surface{jj}.transform(3,4) tip(3,1)],'r'); hold on
+            plot3([surface{jj}.transform(1,4) tip(1,2)],[surface{jj}.transform(2,4) tip(2,2)],[surface{jj}.transform(3,4) tip(3,2)],'g');
+            plot3([surface{jj}.transform(1,4) tip(1,3)],[surface{jj}.transform(2,4) tip(2,3)],[surface{jj}.transform(3,4) tip(3,3)],'b');
+
+
+            %Draw the velocity of the contact plane
+            temp = (vecveltemp+surface{jj}.speed*(dt*(ii-1))); %Move the grid according to the conveyor speed
+            pbool = temp(1,:)>(-0.5*surface{jj}.dim(1))&temp(1,:)<(0.5*surface{jj}.dim(1))&temp(2,:)>(-0.5*surface{jj}.dim(2))&temp(2,:)<(0.5*surface{jj}.dim(2)); %Select the grid points inside the surface area            
+            vecvel = surface{jj}.transform(1:3,1:3)*temp+surface{jj}.transform(1:3,4); %Rotate and translate those points according to surface pose
+            speed = surface{jj}.speed/norm(surface{jj}.speed); %Get the normalized velocity vector
+            vecvel2 = surface{jj}.transform(1:3,1:3)*repmat(0.15*speed,1,length(vecvel)); %Get the end points of the velocity vector
+            
+            quiver3(vecvel(1,pbool),vecvel(2,pbool),vecvel(3,pbool),vecvel2(1,pbool),vecvel2(2,pbool),vecvel2(3,pbool),'off','color',[0 0.4470 0.7410]);
+        end
+        
         %Plot the origin of the world coordinate frame
         tip = [0.3*[1;0;0] 0.3*[0;1;0] 0.3*[0;0;1]];
         plot3([0 tip(1,1)],[0 tip(2,1)],[0 tip(3,1)],'r'); hold on
         plot3([0 tip(1,2)],[0 tip(2,2)],[0 tip(3,2)],'g');
         plot3([0 tip(1,3)],[0 tip(2,3)],[0 tip(3,3)],'b');
 
-        %Draw the velocity of the contact plane
-        vecvel = AR_C*(vecveltemp+c.Cv_AC*(dt*(ii-1)))+Ao_C;
-        speed = c.Cv_AC/norm(c.Cv_AC);
-        vecvel2 = AR_C*repmat(0.15*speed,1,length(vecvel));
-        pbool = (vecvel(1,:)>=(min(spoints(1,:))))&(vecvel(1,:)<=(max(spoints(1,:))))&(vecvel(2,:)>=(min(spoints(2,:))))&(vecvel(2,:)<=(max(spoints(2,:))))&(vecvel(3,:)>=(min(spoints(3,:))))&(vecvel(3,:)<=(max(spoints(3,:))));
-        quiver3(vecvel(1,pbool),vecvel(2,pbool),vecvel(3,pbool),vecvel2(1,pbool),vecvel2(2,pbool),vecvel2(3,pbool),'off');
-
         grid on;axis equal;
-        axis([-0.5 0.5 -0.5 2 -0.3 0.6]);
+        axis([-1 1 -0.7 2 -0.3 0.7]);
         xlabel('x [m]');
         ylabel('y [m]');
         zlabel('z [m]');
         view(-35,31);
+        view(-49,27);
         drawnow
 
         fname = ['static/image']; % full name of image
@@ -282,14 +294,16 @@ function Bplot = plotBox(AH_B,box,color)
         plot3([q(1,ii) tip(1,3)],[q(2,ii) tip(2,3)],[q(3,ii) tip(3,3)],'b');
         
         %Create the box
-        Ap_1 = AR_B*box.vertices(:,1) + Ao_B1{ii};
-        Ap_2 = AR_B*box.vertices(:,2) + Ao_B1{ii};
-        Ap_3 = AR_B*box.vertices(:,3) + Ao_B1{ii};
-        Ap_4 = AR_B*box.vertices(:,4) + Ao_B1{ii};
-        Ap_5 = AR_B*box.vertices(:,5) + Ao_B1{ii};
-        Ap_6 = AR_B*box.vertices(:,6) + Ao_B1{ii};
-        Ap_7 = AR_B*box.vertices(:,7) + Ao_B1{ii};
-        Ap_8 = AR_B*box.vertices(:,8) + Ao_B1{ii};
+        pbool = (abs(box.vertices(1,:))==max(abs(box.vertices(1,:))))&(abs(box.vertices(2,:))==max(abs(box.vertices(2,:))))&(abs(box.vertices(3,:))==max(abs(box.vertices(3,:))));
+        Ap = AR_B*box.vertices(:,pbool)+AH_B(1:3,4);
+        Ap_1 = Ap(:,1);
+        Ap_2 = Ap(:,2);
+        Ap_3 = Ap(:,6);
+        Ap_4 = Ap(:,5);
+        Ap_5 = Ap(:,3);
+        Ap_6 = Ap(:,4);
+        Ap_7 = Ap(:,8);
+        Ap_8 = Ap(:,7);
         
         plot3([Ap_1(1) Ap_2(1)],[Ap_1(2) Ap_2(2)],[Ap_1(3) Ap_2(3)],'k');%
         plot3([Ap_2(1) Ap_3(1)],[Ap_2(2) Ap_3(2)],[Ap_2(3) Ap_3(3)],'k');%
@@ -311,5 +325,9 @@ function Bplot = plotBox(AH_B,box,color)
         fill3([Ap_8(1) Ap_7(1) Ap_3(1) Ap_4(1)],[Ap_8(2) Ap_7(2) Ap_3(2) Ap_4(2)],[Ap_8(3) Ap_7(3) Ap_3(3) Ap_4(3)],1,'FaceColor',color,'FaceAlpha',1);%Face E
         fill3([Ap_1(1) Ap_4(1) Ap_8(1) Ap_5(1)],[Ap_1(2) Ap_4(2) Ap_8(2) Ap_5(2)],[Ap_1(3) Ap_4(3) Ap_8(3) Ap_5(3)],1,'FaceColor',color,'FaceAlpha',1);%Face D
         fill3([Ap_2(1) Ap_3(1) Ap_7(1) Ap_6(1)],[Ap_2(2) Ap_3(2) Ap_7(2) Ap_6(2)],[Ap_2(3) Ap_3(3) Ap_7(3) Ap_6(3)],1,'FaceColor',color,'FaceAlpha',1);%Face B
+
+        %Plot all contact points
+        vertices = AR_B*box.vertices+AH_B(1:3,4);
+        plot3(vertices(1,:),vertices(2,:),vertices(3,:),'.',MarkerSize=1)
         
 end
