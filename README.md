@@ -34,8 +34,8 @@ If you are using this simulator, please refer to it as
 
 # Introduction
 
-This project contains the code I used during my MSc thesis for simulating a box impacting a surface. The code is numerical integration of a nonsmooth dynamical model with impacts and friction. By running the main script `main.m`, you can simulate a box being tossed on a contact surface.
-It uses an augmented Lagrangian approach from [1]. Furthermore the folder **Functions** contains all the necessary functions to run. All settings can be set within the main scripts listed above and the comments provided there should suffice to understand the script. The underlying theory is further explained in my thesis, which can be found [here](https://research.tue.nl/en/studentTheses/model-based-visual-object-tracking-with-collision-models).
+This project contains the code I used during my MSc thesis for simulating a box impacting a surface. The code is numerical integration of a nonsmooth dynamical model with impacts and friction, using an augmented Lagrangian approach from [1]. By running the main script `main.m`, you can simulate a box being tossed on a contact surface.
+The simulator itself is fully contained in the function `BoxSimulator.m`, which contains all the necessary functions to run. All settings can be set within the main scripts listed above and the comments provided there should suffice to understand the script. The underlying theory is further explained in my thesis, which can be found [here](https://research.tue.nl/en/studentTheses/model-based-visual-object-tracking-with-collision-models).
 
 
 Table of content
