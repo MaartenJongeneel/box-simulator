@@ -49,8 +49,8 @@ Table of content
 In current form, the simulator allows you simulate a single box being tossed on one or multiple surfaces, which can each have a certain speed (to simulate e.g., a conveyor). This contact surface can have a certain position and orientation w.r.t. a world frame, and a certain velocity in any direction. The box can have a certain initial position, orientation, linear and angular velocity, and you can set the coefficients of friction, normal restitution, and tangential restitution. The video below shows an example of a simulation result. 
 <div align="center">
     <div style = "display: flex; align="center">
-        <img src="static/box-simulator.gif" width="50%"/> 
-        <img src="static/box-simulator2.gif" width="50%"/>
+        <img src="static/box-simulator.gif" width="48%"/> 
+        <img src="static/box-simulator2.gif" width="48%"/>
     </div>
     <p>Figure 1: Video of an example simulation.</p>
 </div>
@@ -118,7 +118,7 @@ The image below show the resulting box model, with the contact points indicated 
     <div style = "display: flex; align="center">
         <img src="static/boxmodel.png" width="50%"/> 
     </div>
-    <p>Figure 2: Geometric model of the box.</p>
+    <p>Figure 2: Geometric model of the box with the contact points indicated in blue.</p>
 </div>
 
 ## Defining contact surfaces
