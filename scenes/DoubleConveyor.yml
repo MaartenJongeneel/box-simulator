@@ -24,7 +24,7 @@ box:
   eT: 0.0
  discretization: 4
 
-# Simulation settings
+# Surface settings
 surface:
  - dim: [1, 1]
    speed: [0, -1, 0]
