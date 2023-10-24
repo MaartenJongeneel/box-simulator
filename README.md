@@ -46,17 +46,20 @@ Table of content
 - [Contact](#contact)
 
 # Overview
-In current form, the simulator allows you simulate a single box being tossed on one or multiple surfaces, which can each have a certain speed (to simulate e.g., a conveyor). This contact surface can have a certain position and orientation w.r.t. a world frame, and a certain velocity in any direction. The box can have a certain initial position, orientation, linear and angular velocity, and you can set the coefficients of friction, normal restitution, and tangential restitution. The video below shows an example of a simulation result. 
+In current form, the simulator allows you to simulate a single box being tossed on one or multiple surfaces, which can each have a certain speed (to simulate e.g., a conveyor). This contact surface can have a certain position and orientation w.r.t. a world frame, and a certain velocity in any direction. The box can have a certain initial position, orientation, linear and angular velocity, and you can set the coefficients of friction, normal restitution, and tangential restitution. The video below shows two examples of simulations results, for which the scenes can be found in the [scenes](/scenes) folder. 
 <div align="center">
     <div style = "display: flex; align="center">
-        <img src="static/box-simulator.gif" width="48%"/> 
-        <img src="static/box-simulator2.gif" width="48%"/>
+        <img src="static/SingleConveyor.gif" width="48%"/> 
+        <img src="static/DoubleConveyor.gif" width="48%"/>
     </div>
-    <p>Figure 1: Video of an example simulation.</p>
+    <p>Figure 1: Two videos showing examples of simulation results. The two videos correspond to the two scenes described in the scenes folder.</p>
 </div>
 
 # Installation
-The code of this repository is all written in MATLAB and can directly be pulled from this repository. 
+The code of this repository is all written in MATLAB and can directly be cloned from this repository. To read the different scenes (see [here](/scenes/)), we make use of the [readyaml](https://github.com/MaartenJongeneel/readyaml) matlab function as a submodule. Therefore, to clone this repo, follow these steps:
+```
+git clone --recurse-submodules https://github.com/MaartenJongeneel/box-simulator.git
+```
 
 # Usage of the scripts
 The simulator itself is the function `BoxSimulator.m`, which is a stand alone function. This function is called by the main script `main.m`, which contains all settings for the simulation and should be run to initialize the simulation and obtain the results. Below, we give some further details on the settings.<br>
@@ -70,50 +73,43 @@ doPlot             = true;          %Show the trajectory of the box
 MakeVideo          = false;         %Save the simulation result to video
 ```
 
-In the settings below, we define the properties of the box (length, width, height, restitution, friction), and the initial position, orientation, linear and angular velocity of the box. Furthermore, you can set the runtime of the simulation, the stepsize (`c.dt`), and the speed with which the simulation result is played back (`step`). The values for (`c.a`) and (`c.tol`) refer to the settings of the fixed-point iteration that is used to solve the contact problem, and define the auxilary parameter and the error tolerance of convergence, respectively.
+## Running scenes
+In the [scenes](/scenes) folder, some examples of scenes are provided. These scenes contain the information about the box and the surfaces that define the scene. In Matlab, these scenes are loaded via the following lines of code:
 ```matlab
-%% Parameters for input
-x.releaseOrientation = Rx(0);         %Release orientation of the box            [deg]
-x.releasePosition    = [0; 0; 0.3];   %Release position of the box               [m]
-x.releaseLinVel      = [0; 0; 0];     %Release linear velocity (expressed in B)  [m/s]
-x.releaseAngVel      = [3; 1; 0];     %Release angular velocity (expressed in B) [rad/s]
-c.eN                 = 0.4;           %Normal coefficient of restitution         [-]
-c.eT                 = 0.0;           %Tangential coefficient of restitution     [-]
-c.mu                 = 0.6;           %Coefficient of friction                   [-]
-l                    = 0.1;           %Length of the box                         [m]
-w                    = 0.15;          %Width of the box                          [m]
-h                    = 0.05;          %Height of the box                         [m]
-c.a                  = 0.001;         %Prox point auxilary parameter             [-]
-c.tol                = 1e-7;          %Error tol for fixed-point                 [-]
-c.m                  = 1;             %Mass of the box                           [kg]  
-c.endtime            = 1.5;           %Runtime of the simulation                 [s]
-c.dt                 = 1/1000;        %Timestep at which the simulator runs      [s]
-step                 = 1/c.dt/100;    %Number of discrete points we skip per shown frame
+%% Read the scene that you want to run
+scenefile = "DoubleConveyor.yml";
+data = readyaml(scenefile);
 ```
-
-## Box geometric model
-The simulation is assuming an object with uniform mass distribution and computes the inertia tensor according to 
-```matlab
-%Mass matrix of the box
-Ml = c.m*eye(3);
-
-%Inertia matrix of the box
-I  = [(c.m/12)*(w^2+h^2),                 0,                  0;
-                     0,  (c.m/12)*(l^2+h^2),                  0;
-                     0,                 0,   (c.m/12)*(l^2+w^2);];
-%Inertia tensor
-box.B_M_B = [Ml zeros(3,3); zeros(3,3) I];
+where the variable for `scenefile` should be changed in case a different scene should be run. 
+### Defining the Box
+In the scene file, you define the box object following this structure:
+```yaml
+# Parameters of the Box
+box:
+ mass: 1
+ dimensions: [0.1, 0.15, 0.05]
+ inertia_tensor:
+  - [1, 0, 0, 0, 0, 0]
+  - [0, 1, 0, 0, 0, 0]
+  - [0, 0, 1, 0, 0, 0]
+  - [0, 0, 0, 0.0021, 0, 0]
+  - [0, 0, 0, 0, 0.001, 0]
+  - [0, 0, 0, 0, 0, 0.0027]
+ release:
+  position: [0, 0, 0.2]
+  orientation:
+   - [1, 0, 0]
+   - [0, 1, 0]
+   - [0, 0, 1]
+  linVel: [0, 0, 0]
+  angVel: [3, 1, 0]
+ parameters:
+  mu: 0.5
+  eN: 0.4
+  eT: 0.0
+discretization: 4
 ```
-based on the dimensions of the box you specified. Obviously, this can be changed in case a different mass distribution is needed.<br>
-The geometry of the box is defined by a set of contact points, that can be the vertices of the box only, or further discretized along the edges and surfaces of the box. The code below (as part of `main.m`) computes these contact points based on a certain discretization chosen:
-```matlab
-%Discretization of the box vertices
-Ndisc=4; %Define the discretization 
-[X,Y,Z]=meshgrid(linspace(-l/2,l/2,Ndisc),linspace(-w/2,w/2,Ndisc),linspace(-h/2,h/2,Ndisc));
-pbool = (abs(X(:))==l/2) | (abs(Y(:))==w/2) | (abs(Z(:))==h/2);
-box.vertices= [X(pbool)';Y(pbool)';Z(pbool)'];
-```
-The image below show the resulting box model, with the contact points indicated in blue.
+You can set here the mass, dimensions, and the 6x6 generalized inertia tensor. Furthermore, you need to specify the release position, orientation (3x3 rotation matrix), and linear and angular velocity. The parameters `mu`, `eN`, and `eT` define the coefficient of friction, normal restitution, and tangential restitution, respectively. Finalay, the `discretization` parameter defines in how many contact points you want to discretize the surfaces. For the values given above, the image below show the resulting box model, with the contact points indicated in blue (note that the `discretization` of `4` in this case leads to 4 contact points in each dimension on the surface of the box.).
 <div align="center">
     <div style = "display: flex; align="center">
         <img src="static/boxmodel.png" width="50%"/> 
@@ -121,17 +117,31 @@ The image below show the resulting box model, with the contact points indicated 
     <p>Figure 2: Geometric model of the box with the contact points indicated in blue.</p>
 </div>
 
-## Defining contact surfaces
-Contact surfaces are simply defined by a position, orientation, size, and speed. In the code below, we show how 2 surfaces can be stored in a `surface` struct:
-```matlab
-surface{1}.transform = [Rz(30) [0; 0.5; 0]; zeros(1,3),1];
-surface{1}.speed = [0; 1; 0];
-surface{1}.dim = [1 2];
-surface{2}.transform = [Rz(0) [0; 1.5; 0.4]; zeros(1,3),1];
-surface{2}.speed = [0;-1;0];
-surface{2}.dim = [1 1];
+### Defining contact surfaces
+The position and orientation of the contact surface are defined by the 4x4 transformation matrix, defining its position and orientation w.r.t. the world frame. The speed of the conveyor is defined in it's own frame in `m/s` (typically you would have this only in x- and y- direction, but sure, you can also put a z-velocity (out of plane).). The dimensions of the contact surface are in meters. In the yaml file that defines the scene, you can set these parameters. The example below shows how:
+
+```yaml
+surface:
+ - dim: [1, 2]
+   speed: [0, 1, 0]
+   transform:
+    - [0.9962, 0, 0.0872, 0]
+    - [0.0151, 0.9848, -0.1730, 0.5]
+    - [-0.0858, 0.1736, 0.9811, 0]
+    - [0, 0, 0, 1]
 ```
-The position and orientation of the contact surface are defined by the 4x4 transformation matrix, defining its position and orientation w.r.t. the world frame. The speed of the conveyor is defined in it's own frame in `m/s` (typically you would have this only in x- and y- direction, but sure, you can also put a z-velocity (out of plane).). The dimensions of the contact surface are in meters. The functions `Rx(ang)`, `Ry(ang)`, and `Rz(ang)` provide a rotation matrix for pure rotations around the `x`-,`y`-, and `z`-axis, respectively, for a rotation of `ang` degrees.  
+
+## Simulation settings
+In the settings below, we define the runtime of the simulation, the stepsize (`c.dt`), and the speed with which the simulation result is played back (`step`). The values for (`c.a`) and (`c.tol`) refer to the settings of the fixed-point iteration that is used to solve the contact problem, and define the auxilary parameter and the error tolerance of convergence, respectively.
+```matlab
+%% Parameters for input
+c.a                  = 0.001;         %Prox point auxilary parameter             [-]
+c.tol                = 1e-7;          %Error tol for fixed-point                 [-]
+c.m                  = 1;             %Mass of the box                           [kg]  
+c.endtime            = 1.5;           %Runtime of the simulation                 [s]
+c.dt                 = 1/1000;        %Timestep at which the simulator runs      [s]
+step                 = 1/c.dt/100;    %Number of discrete points we skip per shown frame
+```
 
 # Contact
 In case you have questions or if you encountered an error, please contact us through the "Issues" functionality on GIT, or send an email to [m.j.jongeneel@tue.nl](mailto:m.j.jongeneel@tue.nl). 

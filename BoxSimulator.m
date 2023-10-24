@@ -14,21 +14,24 @@ function [AH_B, BV_AB, FN, FT] = BoxSimulator(x,c,box,surface)
 %            c.eN                : 1x1 double, normal coefficient of restitution        [-]
 %            c.eT                : 1x1 double, tangential coefficient of restitution    [-]
 %            c.mu                : 1x1 double, coefficient of friction                  [-]
-%            c.AR_C              : 3x3 double, Orientation of the contact surface       [rad]
-%            c.Ao_C              : 3x1 double, Position of the contact surface          [m]
-%            c.Cv_AC             : 3x1 double, Lin velocity of the contact surface      [m/s]
 %            c.dt                : 1x1 double, Timestep at which the simulator runs     [1/s]
 %            c.endtime           : 1x1 double, Simulation time you want to run          [s]
 %            c.a                 : 1x1 double, Prox point auxilary parameter            [-]
 %            c.tol               : 1x1 double, Error tol for fixed-point                [-]
 %            box                 : struct, with fields of box properties as
-%                                  box.B_M_B  : 6x6 double intertia tensor of the box   []  
+%                                  box.B_M_B   : 6x6 double intertia tensor of the box  []  
 %                                  box.mass    : 1x1 double mass of the box             [kg]
-%                                  box.vertices: 3x8 double position of the vertices of [m]
-%                                                the box w.r.t body-fixed frame
+%                                  box.vertices: 3xN double position of the contact     [m]
+%                                                points w.r.t the body-fixed frame
+%            surface             : Nx1 cell array, with each element a struct containing
+%                                  dim      : 1x2 double, dimensions of the surface
+%                                  speed    : 3x1 double, speed of the surface
+%                                  transform: 4x4 transformation matrix, epxression the 
+%                                             position of the surface w.r.t. the world frame
 %
-% OUTPUTS:   AH_B                : Pose of the box over time
-%            BV_AB               : Left trivialized velocity of the box over time
+% OUTPUTS:   AH_B                : 4x4xN double, transformation matrices expressing the 
+%                                  pose of the box w.r.t. world frame over time
+%            BV_AB               : 6x1xN double, left trivialized velocity of the box over time
 %            FN                  : Normal force acting on the box over time
 %            FT                  : Tangential force acting on the box over time
 %% Constants and settings

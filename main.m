@@ -7,7 +7,7 @@ dosave             = false;         %Save the trajectory (AH_B) to a .mat file
 doPlot             = true;          %Show the trajectory of the box
 MakeVideo          = false;         %Save the simulation result to video
 %% Read the scene that you want to run
-scenefile = "SingleConveyor.yml";
+scenefile = "DoubleConveyor.yml";
 data = readyaml(scenefile);
 %% Parameters for input
 c.a                  = 0.001;           %Prox point auxilary parameter             [-]
@@ -38,7 +38,6 @@ box.vertices= [X(pbool)';Y(pbool)';Z(pbool)'];
 for jj = 1:length(surface)
     surface{jj}.speed = surface{jj}.speed';
 end
-
 %% Run the dynamics
 tic
 [AH_B,BV_AB,FN,FT] = BoxSimulator(x,c,box,surface);
@@ -112,14 +111,16 @@ if doPlot
         end
 
         grid on;axis equal;
-        axis([-1.5 1.5 -1 3.5 -1 1]);
+        axis([-1 1 -0.7 2 -0.3 0.7]);
+%         axis([-0.7 0.7 -0.7 2 -0.3 0.7]);
         xlabel('x [m]');
         ylabel('y [m]');
         zlabel('z [m]');
         view(-35,31);
-        view(-49,27);
-        view(141,29);
-        axis off
+%         view(-49,27);
+%         view(141,29);
+        view(-41,25);
+%         axis off
         drawnow
         hold off
     end
@@ -169,13 +170,13 @@ if MakeVideo
 
         grid on;axis equal; 
         axis([-1.5 1.5 -0.7 3.5 -0.3 0.7]);
+        axis([-0.7 0.7 -0.7 2 -0.3 0.7]);
+        axis([-1 1 -0.7 2 -0.3 0.7]);
         xlabel('x [m]');
         ylabel('y [m]');
         zlabel('z [m]');
         view(-35,31);
-        view(-49,27);
-        view(141,29);
-        axis off
+%         axis off
         drawnow
         hold off
 
