@@ -109,7 +109,7 @@ box:
   eT: 0.0
 discretization: 4
 ```
-You can set here the mass, dimensions, and the 6x6 generalized inertia tensor. Furthermore, you need to specify the release position, orientation (3x3 rotation matrix), and linear and angular velocity. The parameters `mu`, `eN`, and `eT` define the coefficient of friction, normal restitution, and tangential restitution, respectively. Finalay, the `discretization` parameter defines in how many contact points you want to discretize the surfaces. For the values given above, the image below show the resulting box model, with the contact points indicated in blue (note that the `discretization` of `4` in this case leads to 4 contact points in each dimension on the surface of the box.).
+You can set here the mass, dimensions, and the 6x6 generalized inertia tensor. Furthermore, you need to specify the release position, orientation (3x3 rotation matrix), and linear and angular velocity. The parameters `mu`, `eN`, and `eT` define the coefficient of friction, normal restitution, and tangential restitution, respectively. Finally, the `discretization` parameter defines in how many contact points you want to discretize the surfaces. For the values given above, the image below show the resulting box model, with the contact points indicated in blue (note that the `discretization` of `4` in this case leads to 4 contact points in each dimension on the surface of the box.).
 <div align="center">
     <div style = "display: flex; align="center">
         <img src="static/boxmodel.png" width="50%"/> 
