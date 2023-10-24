@@ -41,7 +41,7 @@ N = c.endtime/c.dt;                           %Run to this frame                
 
 %% Preallocate memory to speed up the process
 FT = NaN(length(box.vertices),N);
-FN = NaN(length(box.vertices)/2,N); 
+FN = NaN(length(box.vertices),N); 
 AH_B = cell(1,N);
 E  = NaN(1,N);
 
@@ -131,6 +131,7 @@ for ii=1:N
             %contact surface.
             gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[];
             for jj=1:length(surf)
+                speed = surface{surf(jj)}.speed';
                 gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
                 gammaNE = [gammaNE; (WNM{jj}'*vE-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
 
