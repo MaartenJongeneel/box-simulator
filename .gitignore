@@ -1,8 +1,5 @@
 *.asv
 *.avi
 *.jpg
-<<<<<<< HEAD
-=======
 /*.png
->>>>>>> devel
 ThrowCatchBelt.yml
