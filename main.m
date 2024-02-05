@@ -7,14 +7,15 @@ dosave             = false;         %Save the trajectory (AH_B) to a .mat file
 doPlot             = true;          %Show the trajectory of the box
 MakeVideo          = false;         %Save the simulation result to video
 %% Read the scene that you want to run
-scenefile = "DoubleConveyor.yml";
+scenefile = "SingleConveyor.yml";
 data = readyaml(scenefile);
 %% Parameters for input
-c.a                  = 0.001;           %Prox point auxilary parameter             [-]
-c.tol                = 1e-7;            %Error tol for fixed-point                 [-]
+c.a                  = 0.01;           %Prox point auxilary parameter             [-]
+c.tol                = 1e-6;            %Error tol for fixed-point                 [-]
 c.m                  = 1;               %Mass of the box                           [kg]  
-c.endtime            = 2;               %Runtime of the simulation                 [s]
+c.endtime            = 1.2;               %Runtime of the simulation                 [s]
 c.dt                 = 1/1000;          %Timestep at which the simulator runs      [s]
+c.dimd               = 16;              %Discretization of the friction cone
 step                 = ceil(1/c.dt/50); %Number of discrete points we skip per shown frame
 %% Read the scene data
 x.releaseOrientation = data.box.release.orientation;  %Release orientation of the box            [deg]
@@ -22,25 +23,58 @@ x.releasePosition    = data.box.release.position';    %Release position of the b
 x.releaseLinVel      = data.box.release.linVel';      %Release linear velocity (expressed in B)  [m/s]
 x.releaseAngVel      = data.box.release.angVel';      %Release angular velocity (expressed in B) [rad/s]
 c.eN                 = data.box.parameters.eN;        %Normal coefficient of restitution         [-]
-c.eT                 = data.box.parameters.eT;        %Tangential coefficient of restitution     [-]
+c.eT                 = data.box.parameters.eT;        %Tangential coefficient of restitution     [-]s
 c.mu                 = data.box.parameters.mu;        %Coefficient of friction                   [-]
 box                  = data.box;                      %Obtain the box struct
 box.B_M_B            = data.box.inertia_tensor;       %Rewrite inertia tensor
 surface              = data.surface;                  %Obtain the surfaces 
 %% Create the box struct
 %Discretization of the box vertices
-Ndisc=data.box.discretization;
-[X,Y,Z]=meshgrid(linspace(-box.dimensions(1)/2,box.dimensions(1)/2,Ndisc),linspace(-box.dimensions(2)/2,box.dimensions(2)/2,Ndisc),linspace(-box.dimensions(3)/2,box.dimensions(3)/2,Ndisc));
-pbool = (abs(X(:))==box.dimensions(1)/2) | (abs(Y(:))==box.dimensions(2)/2) | (abs(Z(:))==box.dimensions(3)/2);
-box.vertices= [X(pbool)';Y(pbool)';Z(pbool)'];
+% Ndisc=data.box.discretization;
+% [X,Y,Z]=meshgrid(linspace(-box.dimensions(1)/2,box.dimensions(1)/2,Ndisc),linspace(-box.dimensions(2)/2,box.dimensions(2)/2,Ndisc),linspace(-box.dimensions(3)/2,box.dimensions(3)/2,Ndisc));
+% pbool = (abs(X(:))==box.dimensions(1)/2) | (abs(Y(:))==box.dimensions(2)/2) | (abs(Z(:))==box.dimensions(3)/2);
+% box.vertices= [X(pbool)';Y(pbool)';Z(pbool)'];
+% box.vertices = box.vertices + [0.04998; 0; 0];
+
 
 %% Define the impact planes
 for jj = 1:length(surface)
     surface{jj}.speed = surface{jj}.speed';
 end
 %% Run the dynamics
+
+%Scale between [0 1] an extra set of contact points
+scale=0; 
+[X,Y,Z]=meshgrid(linspace(-box.dimensions(1)/2,box.dimensions(1)/2,2),linspace(-box.dimensions(2)/2,box.dimensions(2)/2,2),linspace(-box.dimensions(3)/2,box.dimensions(3)/2,2));
+vertices= [X(:)';Y(:)';Z(:)'];
+xpoints = [X(:)';scale*Y(:)';scale*Z(:)'];
+ypoints = [scale*X(:)';Y(:)';scale*Z(:)'];
+zpoints = [scale*X(:)';scale*Y(:)';Z(:)'];
+
+box.vertices = [vertices xpoints ypoints zpoints];
+
+%Plot the box with contact points
+figure;plotBox(eye(4),box,[1 0 0]);
+axis equal; axis off;hold on; 
+plot3(box.vertices(1,:),box.vertices(2,:),box.vertices(3,:),'.','color',[0 0 0],'markersize',15)
+
+%Run the simulation
 tic
-[AH_B,BV_AB,FN,FT] = BoxSimulator(x,c,box,surface);
+[AH_B_fp,BV_AB_fp,PN,PT] = BoxSimulator(x,c,box,surface);
+toc
+
+%Scale between [0 1] an extra set of contact points
+scale=0.5; 
+[X,Y,Z]=meshgrid(linspace(-box.dimensions(1)/2,box.dimensions(1)/2,2),linspace(-box.dimensions(2)/2,box.dimensions(2)/2,2),linspace(-box.dimensions(3)/2,box.dimensions(3)/2,2));
+vertices= [X(:)';Y(:)';Z(:)'];
+xpoints = [X(:)';scale*Y(:)';scale*Z(:)'];
+ypoints = [scale*X(:)';Y(:)';scale*Z(:)'];
+zpoints = [scale*X(:)';scale*Y(:)';Z(:)'];
+
+box.vertices = [vertices xpoints ypoints zpoints];
+
+tic
+[AH_B, BV_AB, ~, ~] = BoxSimulatorLCP(x,c,box,surface);
 toc
 
 %% Figures
@@ -80,7 +114,8 @@ if doPlot
     figure(Position=[200 200 1200 800]);
 
     for ii=1:step:length(AH_B)
-        plotBox(AH_B{ii},box,[0 0 1]);
+        plotBox(AH_B(:,:,ii),box,[1 0 0]);
+        plotBox(AH_B_fp(:,:,ii),box,[0 0 1]);
 
         %Plot the origin of the world coordinate frame
         tip = [0.3*[1;0;0] 0.3*[0;1;0] 0.3*[0;0;1]];
@@ -117,10 +152,8 @@ if doPlot
         ylabel('y [m]');
         zlabel('z [m]');
         view(-35,31);
-%         view(-49,27);
-%         view(141,29);
         view(-41,25);
-%         axis off
+        axis off
         drawnow
         hold off
     end
@@ -137,7 +170,7 @@ if MakeVideo
 
     figure(1);
     for ii=1:step:length(AH_B)
-        plotBox(AH_B{ii},box,[0 0 1]);        
+        plotBox(AH_B(:,:,ii),box,[0 0 1]);        
         
         %Plot the inclined table C
         for jj=1:length(surface)
@@ -192,55 +225,65 @@ if MakeVideo
 end
 
 %% Plot Position, Velocity, Force
-AH_Bm = cat(3,AH_B{:});
+% AH_Bm = cat(3,AH_B{:});
 set(groot,'defaulttextinterpreter','latex'); set(groot,'defaultAxesTickLabelInterpreter','latex'); set(groot,'defaultLegendInterpreter','latex');
 % close all;
 time=0:dt:runtime;
 
-figure; 
-plot(time(1:end-1),flipud(FN)');
+figure('pos',[95,530,560,420]); 
+plot(time(1:end-1),flipud(PN)');
 % axis([0 10 0.002451 0.002454]);
 grid on;
-legend('Contact point 1','Contact point 2','Contact point 3','Contact point 4');
-ylabel('$F_N$ [N]');
+legend('Contact point 1','Contact point 2','Contact point 3','Contact point 4','Contact point 5','Contact point 6','Contact point 7','Contact point 8');
+ylabel('$P_N$ [N]');
 xlabel('time [s]');
 title('Normal force of the contact points for a box of 1 kg');
 
-figure;
+figure('pos',[670,530,560,420]); 
 sgtitle('Velocity of the COM of the box in x,y,z-direction');
 subplot(1,3,1);
+plot(time(1:end-1),BV_AB_fp(1,1:end-1)); hold on;
 plot(time(1:end-1),BV_AB(1,1:end-1));
 ylabel('Velocity [m/s]');
 xlabel('Time [s]');
 title('x');
+legend('FP','LCP')
 
 subplot(1,3,2);
+plot(time(1:end-1),BV_AB_fp(2,1:end-1)); hold on;
 plot(time(1:end-1),BV_AB(2,1:end-1));
 xlabel('Time [s]');
 title('y');
 
 subplot(1,3,3);
+plot(time(1:end-1),BV_AB_fp(3,1:end-1)); hold on;
 plot(time(1:end-1),BV_AB(3,1:end-1));
 xlabel('Time [s]');
 title('z');
 
-figure;
+
+figure('pos',[1245,530,560,420]); 
 sgtitle('Position of the COM of the box in x,y,z-direction');
 subplot(1,3,1);
-plot(time(1:end-1),squeeze(AH_Bm(1,4,1:end-1)));
+plot(time(1:end-1),squeeze(AH_B_fp(1,4,1:end-1))); hold on;
+plot(time(1:end-1),squeeze(AH_B(1,4,1:end-1)));
 title('x');
 xlabel('Time [s]');
 ylabel('Position [m]');
+legend('FP','LCP')
 
 subplot(1,3,2);
-plot(time(1:end-1),squeeze(AH_Bm(2,4,1:end-1)))
+plot(time(1:end-1),squeeze(AH_B_fp(2,4,1:end-1))); hold on;
+plot(time(1:end-1),squeeze(AH_B(2,4,1:end-1)))
 title('y');
 xlabel('Time [s]');
 
 subplot(1,3,3);
-plot(time(1:end-1),squeeze(AH_Bm(3,4,1:end-1)))
+plot(time(1:end-1),squeeze(AH_B_fp(3,4,1:end-1))); hold on;
+plot(time(1:end-1),squeeze(AH_B(3,4,1:end-1)))
 title('z');
 xlabel('Time [s]');
+
 
 %% Functions
 function R = Rx(th)
@@ -276,7 +319,6 @@ function Bplot = plotBox(AH_B,box,color)
         AR_B = AH_B(1:3,1:3);
         %Output the position of the current time step for plotting purposes
         q(:,1)  = AH_B(1:3,4);
-        Ao_B1{1} = AH_B(1:3,4);
         R1(:,1) = AH_B(1:3,1);
         R2(:,1) = AH_B(1:3,2);
         R3(:,1) = AH_B(1:3,3);
@@ -290,6 +332,7 @@ function Bplot = plotBox(AH_B,box,color)
         %Create the box
         pbool = (abs(box.vertices(1,:))==max(abs(box.vertices(1,:))))&(abs(box.vertices(2,:))==max(abs(box.vertices(2,:))))&(abs(box.vertices(3,:))==max(abs(box.vertices(3,:))));
         Ap = AR_B*box.vertices(:,pbool)+AH_B(1:3,4);
+%         Ap = AR_B*box.vertices+AH_B(1:3,4);
         Ap_1 = Ap(:,1);
         Ap_2 = Ap(:,2);
         Ap_3 = Ap(:,6);

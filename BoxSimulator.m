@@ -39,13 +39,17 @@ g     = 9.81;                                 %Gravitational acceleration       
 Bv_AB = x.releaseLinVel;                      %Linear velocity at t0 of B wrt frame A  [m/s]
 Bomg_AB = x.releaseAngVel;                    %Angular velocity at t0 of B wrt frame A [m/s]
 PNfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
+LNfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
+lnfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
 PTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
+LTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
+ltfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
 N = c.endtime/c.dt;                           %Run to this frame                       [-]
 
 %% Preallocate memory to speed up the process
 FT = NaN(length(box.vertices),N);
 FN = NaN(length(box.vertices),N); 
-AH_B = cell(1,N);
+AH_B = NaN(4,4,N);
 E  = NaN(1,N);
 
 %% Retrieve info of box struct
@@ -60,7 +64,7 @@ BA_f   = [BA_fo; BA_Tau];
 %Initial pose of the box: Transformation matrix B w.r.t. frame A
 AR_B    = x.releaseOrientation;%Initial orientation
 Ao_B    = x.releasePosition;   %Initial position
-AH_B{1} = [AR_B, Ao_B; zeros(1,3), 1]; %Homogeneous transformation matrix
+AH_B(:,:,1) = [AR_B, Ao_B; zeros(1,3), 1]; %Homogeneous transformation matrix
 
 %Initial left trivialized velocity of frame B w.r.t. frame A
 BV_AB(:,1) = [Bv_AB; Bomg_AB];
@@ -72,10 +76,10 @@ for ii=1:N
     BV_ABs = hat(BV_AB(:,ii));
     
     %Kinematics: Compute the configuration at the mid-time (tM)
-    AH_Bm = AH_B{ii}*expm(0.5*c.dt*BV_ABs);
+    AH_Bm = AH_B(:,:,ii)*expm(0.5*c.dt*BV_ABs);
     AR_Bm = AH_Bm(1:3,1:3);
     Ao_Bm = AH_Bm(1:3,4);
-    AR_B  = AH_B{ii}(1:3,1:3);
+    AR_B  = AH_B(1:3,1:3,ii);
     
     %Compute the wrench at tM
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
@@ -123,8 +127,13 @@ for ii=1:N
         %Give an initial guess for the normal and tangential momenta
         PN=PNfull(IN);
         PT=cell2mat(PTfull(IN));
+        LN = LNfull(IN); 
+        ln = lnfull(IN); 
+        LT=cell2mat(LTfull(IN));
+        lt=cell2mat(ltfull(IN));
         term1 = B_fM*c.dt - [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*B_M_B*vA*c.dt;
         converged = 0;
+        tel = 1;
         while converged==0
             %Discrete time dynamics: Equations of motion
             vE = vA + B_M_B\(term1 + WNMt*PN + WTMt*PT);
@@ -148,38 +157,78 @@ for ii=1:N
             xiT = gammaTE+c.eT*gammaTA;
             
             %Using prox functions: project PN and PT
-            PNold = PN;
-            PTold = PT;
-            PN = proxCN(PN-c.a*xiN);
-            PT = proxCT(PT-c.a*xiT,c.mu*PN);
-            
+%             PNold = PN;
+%             PTold = PT;
+%             PN = proxCN(PN-c.a*xiN);
+%             PT = proxCT(PT-c.a*xiT,c.mu*PN);
+
+            PNold = LN + ln*c.dt;
+            PTold = LT + lt*c.dt;
+
+            %We only apply Newton's restituion if velocity is above certain
+            %treshhold. 
+            if gammaNA < -0.05
+                LN = proxCN(LN-c.a*xiN);
+                LT = proxCT(LT-c.a*xiT,c.mu*LN);
+            else
+                xiN = gammaNE+0*gammaNA;
+                xiT = gammaTE+0*gammaTA;
+                LN = proxCN(LN-c.a*xiN);
+                LT = proxCT(LT-c.a*xiT,c.mu*LN);
+            end
+            ln = proxCN(ln-c.a*gN(IN));
+            lt = proxCT(lt-c.a*gammaTA,c.mu*ln);
+            PN = LN + ln*c.dt;
+            PT = LT + lt*c.dt;
+
             %Compute the error
-            error = norm(PN-PNold)+norm(PT-PTold);
+            error(tel) = norm(PN-PNold)+norm(PT-PTold);
             
             %Check for convergence
-            converged = error<c.tol;
+            converged = error(tel)<c.tol;
+            tel = tel+1;
         end
         BV_AB(:,ii+1) = vE;
+
+        %Figure (uncomment to show convergence)
+%         figure; 
+%         x1 = plot(PNe(1,:)); hold on; 
+%         g1 = plot(PNeold(1,:));
+%         
+%         for jj = 1:length(PNe)-1
+%             plot([jj jj],[PNe(1,jj) PNeold(1,jj)],'k');
+%             plot([jj jj+1],[PNe(1,jj) PNeold(1,jj+1)],'k');
+%         end
+%         legend([x1,g1],'$x($\boldmath${x})$','$g($\boldmath${x})$')
+%         clear PNe PNeold PTe PTeold
     else
         %Update the velocity to the next time step using configuration at tM
         vE = B_M_B\(B_fM*c.dt - [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*B_M_B*vA*c.dt) + vA;
         BV_AB(:,ii+1) = vE;
         PN = 0;
+        LN = 0;
+        ln = 0;
         PT = [0;0];
+        LT = [0;0];
+        lt = [0;0];
     end
     %Give estimate for PN and PT for next timestep (speeds up convergence
     %in case of persistant contact)
     if IN ~= 0
         PNfull(IN)=PN;
+        LNfull(IN)=LN;
+        lnfull(IN)=ln;
         cnt=1;
         for jj = length(IN)
             PTfull(IN(jj)) = {PT(cnt:cnt+1)};
+            LTfull(IN(jj)) = {LT(cnt:cnt+1)};
+            ltfull(IN(jj)) = {lt(cnt:cnt+1)};
             cnt=cnt+2;
         end
     end
     
     %Complete the time step
-    AH_B{ii+1}  = AH_Bm*expm(0.5*c.dt*hat(BV_AB(:,ii+1)));
+    AH_B(:,:,ii+1)  = AH_Bm*expm(0.5*c.dt*hat(BV_AB(:,ii+1)));
     
     %Kinetic energy
     E(ii) = 0.5*BV_AB(:,ii)'*B_M_B*BV_AB(:,ii);  %Kinetic energy
