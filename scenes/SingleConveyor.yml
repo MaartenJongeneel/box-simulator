@@ -11,27 +11,27 @@ box:
   - [0, 0, 0, 0, 0.001, 0]
   - [0, 0, 0, 0, 0, 0.0027]
  release:
-  position: [0, 0, 0.3]
+  position: [0, 0, 0.2]
   orientation:
    - [1, 0, 0]
    - [0, 1, 0]
    - [0, 0, 1]
-  linVel: [1, 2, 0]
-  angVel: [3, 2, 0]
+  linVel: [0, 0, 0]
+  angVel: [3, 1, 0]
  parameters:
-  mu: 0.4
-  eN: 0.3
+  mu: 0.5
+  eN: 0.4
   eT: 0.0
- discretization: 2
+ discretization: 4
 
 # Surface settings
 surface:
- - dim: [5, 5]
-   speed: [0, 0, 0]
+ - dim: [1, 2]
+   speed: [0, 1, 0]
    transform:
-    - [1, 0, 0, 0]
-    - [0, 1, 0, 0]
-    - [0, 0, 1, 0]
+    - [0.9962, 0, 0.0872, 0]
+    - [0.0151, 0.9848, -0.1730, 0.5]
+    - [-0.0858, 0.1736, 0.9811, 0]
     - [0, 0, 0, 1]
 
 # surface:

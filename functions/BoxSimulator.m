@@ -44,7 +44,7 @@ lnfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN     
 PTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
 LTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
 ltfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
-N = c.endtime/c.dt;                           %Run to this frame                       [-]
+N = round(c.endtime/c.dt);                           %Run to this frame                       [-]
 
 %% Preallocate memory to speed up the process
 FT = NaN(length(box.vertices),N);
@@ -157,29 +157,29 @@ for ii=1:N
             xiT = gammaTE+c.eT*gammaTA;
             
             %Using prox functions: project PN and PT
-%             PNold = PN;
-%             PTold = PT;
-%             PN = proxCN(PN-c.a*xiN);
-%             PT = proxCT(PT-c.a*xiT,c.mu*PN);
+            PNold = PN;
+            PTold = PT;
+            PN = proxCN(PN-c.a*xiN);
+            PT = proxCT(PT-c.a*xiT,c.mu*PN);
 
-            PNold = LN + ln*c.dt;
-            PTold = LT + lt*c.dt;
-
-            %We only apply Newton's restituion if velocity is above certain
-            %treshhold. 
-            if gammaNA < -0.05
-                LN = proxCN(LN-c.a*xiN);
-                LT = proxCT(LT-c.a*xiT,c.mu*LN);
-            else
-                xiN = gammaNE+0*gammaNA;
-                xiT = gammaTE+0*gammaTA;
-                LN = proxCN(LN-c.a*xiN);
-                LT = proxCT(LT-c.a*xiT,c.mu*LN);
-            end
-            ln = proxCN(ln-c.a*gN(IN));
-            lt = proxCT(lt-c.a*gammaTA,c.mu*ln);
-            PN = LN + ln*c.dt;
-            PT = LT + lt*c.dt;
+%             PNold = LN + ln*c.dt;
+%             PTold = LT + lt*c.dt;
+% 
+%             %We only apply Newton's restituion if velocity is above certain
+%             %treshhold. 
+%             if gammaNA < -0.05
+%                 LN = proxCN(LN-c.a*xiN);
+%                 LT = proxCT(LT-c.a*xiT,c.mu*LN);
+%             else
+%                 xiN = gammaNE+0*gammaNA;
+%                 xiT = gammaTE+0*gammaTA;
+%                 LN = proxCN(LN-c.a*xiN);
+%                 LT = proxCT(LT-c.a*xiT,c.mu*LN);
+%             end
+%             ln = proxCN(ln-c.a*gN(IN));
+%             lt = proxCT(lt-c.a*gammaTA,c.mu*ln);
+%             PN = LN + ln*c.dt;
+%             PT = LT + lt*c.dt;
 
             %Compute the error
             error(tel) = norm(PN-PNold)+norm(PT-PTold);

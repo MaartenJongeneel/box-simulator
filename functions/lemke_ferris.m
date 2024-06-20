@@ -97,7 +97,7 @@ end
 basis = sort(basis(find(basis<=n)));
 
 
-disp('iterations exceeded limit');
+% disp('iterations exceeded limit');
 
 
 end
