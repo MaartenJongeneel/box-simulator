@@ -33,6 +33,9 @@ function [AH_B, BV_AB, PN, PT] = BoxSimulatorLCP(x,c,box,surface)
 %            BV_AB               : 6x1xN double, left trivialized velocity of the box over time
 %            FN                  : Normal force acting on the box over time
 %            FT                  : Tangential force acting on the box over time
+%
+% Copyright (c) 2021, Maarten Jongeneel
+% All rights reserved.
 
 %% Constants and settings
 g     = 9.81;                                 %Gravitational acceleration              [m/s^2]
@@ -91,15 +94,6 @@ for t = 1:N %For each time step
     
     %Compute the wrench at tM
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
-
-    %Update crossorter position and speed
-    for jj = 1:11
-        surface{29+jj}.transform = surface{29+jj}.transform*expm(hat([0;2.5;0;0;0;0]*c.dt));
-
-        if surface{29+jj}.transform(1,4)<-5 %If we passed the infeed zone, stop the crossbelt
-           surface{29+jj}.speed = [0; 2.5; 0];
-        end
-    end
     
     %And compute the gap-functions at tM column of normal contact distances
     gN=[];
@@ -123,7 +117,7 @@ for t = 1:N %For each time step
     %Obtain the linear and angular velocity at tA
     vA = BV_AB(:,t);
     
-    %If a gap function has been closed, contact has been madeAo_B(:,)ii)
+    %If a gap function has been closed, contact has been made
     [IN,surf] = find(gN<0);
     if  IN > 0
         if length(surf)>1
@@ -167,15 +161,14 @@ for t = 1:N %For each time step
         %substranct from the relative velocity the velocity of the
         %contact surface.
         gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[]; conv = [];
-        for jj=1:length(surf)            
+        for jj=1:length(surf)      
             gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
             gammaTA = [gammaTA; WTA{jj}'*vA];
             speed =surface{surf(jj)}.transform(1:3,1:3)*surface{surf(jj)}.speed;
             conv = [conv; repmat(D*speed,sum(indx(:,surf(jj))),1)];            
         end
 
-        % --------- OPTION C -----------%
-        %See Claude's thesis, page 128.
+        %Setup the matrices for the LCP (See Claude's thesis, page 128)
         C =[0*diag(ones(1,nn*dimd)), zeros(nn*dimd,nn),  E(1:nn*dimd,1:nn);
             zeros(nn,nn*dimd),      0.0*c.dt*diag(ones(1,nn)),       zeros(nn,nn);
             -E(1:nn*dimd,1:nn)',     Mu,                0*diag(ones(1,nn))];
@@ -190,12 +183,10 @@ for t = 1:N %For each time step
         b = G/M*u-v;
        
         %Solve the LCP formulation
-%         [y,x] = LCP(A,b);
-        [x,y] = lemke_ferris(A,b);
+        [x,~] = LCP(A,b);
 
         PT = x(1:dimd*nn);
         PN = x(dimd*nn+1:dimd*nn+nn);
-        beta = x(end-nn+1:end);
 
         vE = vA + M\(B_fM*c.dt - [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*M*vA*c.dt + WNMt*PN + WTMt*PT);        
         BV_AB(:,t+1) = vE;        
@@ -207,71 +198,4 @@ for t = 1:N %For each time step
     
     %Complete the time step
     AH_B(:,:,t+1)  = AH_Bm*expm(0.5*c.dt*hat(BV_AB(:,t+1)));
-end
-
-%% Functions 
-function R = Rx(th)
-%Rotate around x with th degrees;
-R = [1 0 0; 0 cos(deg2rad(th)) -sin(deg2rad(th)); 0 sin(deg2rad(th)) cos(deg2rad(th))];
-end
-
-function R = Ry(th)
-%Rotate around y with th degrees;
-R = [cos(deg2rad(th)) 0 sin(deg2rad(th)); 0 1 0;  -sin(deg2rad(th)) 0 cos(deg2rad(th))];
-end
-
-function R = Rz(th)
-%Rotate around z with th degrees;
-R = [cos(deg2rad(th)) -sin(deg2rad(th)) 0; sin(deg2rad(th)) cos(deg2rad(th)) 0; 0 0 1];
-end
-
-function res = hat(vec)
-% Take the 3- or 6-vector representing an isomorphism of so(3) or se(3) and
-% writes this as element of so(3) or se(3). 
-%
-% INPUTS:    vec     : 3- or 6-vector. Isomorphism of so(3) or se(3)
-%
-% OUTPUTS:   res     : element of so(3) or se(3)
-%
-%% Hat operator
-if length(vec) == 3
-    res = [0, -vec(3), vec(2); vec(3), 0, -vec(1); -vec(2), vec(1), 0];
-elseif length(vec) == 6
-    skew = [0, -vec(6), vec(5); vec(6), 0, -vec(4); -vec(5), vec(4), 0];
-    v = [vec(1);vec(2);vec(3)];
-    res = [skew, v; zeros(1,4)];
-end
-end
-
-function res = vee(mat)
-% Takes an element of so(3) or se(3) and returns its isomorphism in R^n.
-%
-% INPUTS:    mat     : element of so(3) or se(3)
-%
-% OUTPUTS:   res     : 3- or 6-vector. Isomorphism of so(3) or se(3)
-%
-%% Vee operator
-
-xi1 = (mat(3,2)-mat(2,3))/2;
-xi2 = (mat(1,3)-mat(3,1))/2;
-xi3 = (mat(2,1)-mat(1,2))/2;
-
-if length(mat) == 3
-   res = [xi1; xi2; xi3];
-elseif length(mat) == 4
-   res = [mat(1:3,4);xi1;xi2;xi3]; 
-end
-end
-
-% Matrix with force directions
-function [WN,WT] = CompW(AR_B,AR_C,vertices)
-% Compute the matrix containing the tangential force directions.
-tel = 1;
-for ii = 1:length(vertices(1,:))
-    w = (AR_C'*[AR_B -AR_B*hat(vertices(:,ii))])';
-    WN(:,ii) = w(:,3);
-    WT(:,tel:tel+1) = w(:,1:2);
-    tel = tel+2;
-end
-end
 end

@@ -34,17 +34,16 @@ function [AH_B, BV_AB, FN, FT] = BoxSimulator(x,c,box,surface)
 %            BV_AB               : 6x1xN double, left trivialized velocity of the box over time
 %            FN                  : Normal force acting on the box over time
 %            FT                  : Tangential force acting on the box over time
+%
+% Copyright (c) 2021, Maarten Jongeneel
+% All rights reserved.
 %% Constants and settings
 g     = 9.81;                                 %Gravitational acceleration              [m/s^2]
 Bv_AB = x.releaseLinVel;                      %Linear velocity at t0 of B wrt frame A  [m/s]
 Bomg_AB = x.releaseAngVel;                    %Angular velocity at t0 of B wrt frame A [m/s]
 PNfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
-LNfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
-lnfull = zeros(length(box.vertices),1);       %Initial guess for momenta PN            [N*s]
 PTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
-LTfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
-ltfull(1:length(box.vertices),1) = {[0;0]};   %initial guess for momenta PT            [N*s]
-N = round(c.endtime/c.dt);                           %Run to this frame                       [-]
+N = round(c.endtime/c.dt);                    %Run to this frame                       [-]
 
 %% Preallocate memory to speed up the process
 FT = NaN(length(box.vertices),N);
@@ -69,10 +68,7 @@ AH_B(:,:,1) = [AR_B, Ao_B; zeros(1,3), 1]; %Homogeneous transformation matrix
 %Initial left trivialized velocity of frame B w.r.t. frame A
 BV_AB(:,1) = [Bv_AB; Bomg_AB];
 
-%%
-% for ii = 1:length(AH_B_fp); xi(:,ii) = vee(logm(AH_B_fp(1:3,1:3,ii))); end
 %% Dynamics
-
 for ii=1:N
     %Rewrite the body velocity as a 4x4 matrix in se(3)
     BV_ABs = hat(BV_AB(:,ii));
@@ -85,15 +81,6 @@ for ii=1:N
     
     %Compute the wrench at tM
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
-
-    %Update crossorter position and speed
-    for jj = 1:11
-        surface{29+jj}.transform = surface{29+jj}.transform*expm(hat([0;2.5;0;0;0;0]*c.dt));
-
-        if surface{29+jj}.transform(1,4)<-5 %If we passed the infeed zone, stop the crossbelt
-           surface{29+jj}.speed = [0; 2.5; 0];
-        end
-    end
 
     %And compute the gap-functions at tM column of normal contact distances
     gN=[];
@@ -138,10 +125,6 @@ for ii=1:N
         %Give an initial guess for the normal and tangential momenta
         PN=PNfull(IN);
         PT=cell2mat(PTfull(IN));
-        LN = LNfull(IN); 
-        ln = lnfull(IN); 
-        LT=cell2mat(LTfull(IN));
-        lt=cell2mat(ltfull(IN));
         term1 = B_fM*c.dt - [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*B_M_B*vA*c.dt;
         converged = 0;
         tel = 1;
@@ -173,67 +156,28 @@ for ii=1:N
             PN = proxCN(PN-c.a*xiN);
             PT = proxCT(PT-c.a*xiT,c.mu*PN);
 
-%             PNold = LN + ln*c.dt;
-%             PTold = LT + lt*c.dt;
-% 
-%             %We only apply Newton's restituion if velocity is above certain
-%             %treshhold. 
-%             if gammaNA < -0.05
-%                 LN = proxCN(LN-c.a*xiN);
-%                 LT = proxCT(LT-c.a*xiT,c.mu*LN);
-%             else
-%                 xiN = gammaNE+0*gammaNA;
-%                 xiT = gammaTE+0*gammaTA;
-%                 LN = proxCN(LN-c.a*xiN);
-%                 LT = proxCT(LT-c.a*xiT,c.mu*LN);
-%             end
-%             ln = proxCN(ln-c.a*gN(IN));
-%             lt = proxCT(lt-c.a*gammaTA,c.mu*ln);
-%             PN = LN + ln*c.dt;
-%             PT = LT + lt*c.dt;
-
             %Compute the error
-            error(tel) = norm(PN-PNold)+norm(PT-PTold);
+            error = norm(PN-PNold)+norm(PT-PTold);
             
             %Check for convergence
-            converged = error(tel)<c.tol;
+            converged = error<c.tol;
             tel = tel+1;
         end
         BV_AB(:,ii+1) = vE;
-
-        %Figure (uncomment to show convergence)
-%         figure; 
-%         x1 = plot(PNe(1,:)); hold on; 
-%         g1 = plot(PNeold(1,:));
-%         
-%         for jj = 1:length(PNe)-1
-%             plot([jj jj],[PNe(1,jj) PNeold(1,jj)],'k');
-%             plot([jj jj+1],[PNe(1,jj) PNeold(1,jj+1)],'k');
-%         end
-%         legend([x1,g1],'$x($\boldmath${x})$','$g($\boldmath${x})$')
-%         clear PNe PNeold PTe PTeold
     else
         %Update the velocity to the next time step using configuration at tM
         vE = B_M_B\(B_fM*c.dt - [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*B_M_B*vA*c.dt) + vA;
         BV_AB(:,ii+1) = vE;
         PN = 0;
-        LN = 0;
-        ln = 0;
         PT = [0;0];
-        LT = [0;0];
-        lt = [0;0];
     end
     %Give estimate for PN and PT for next timestep (speeds up convergence
     %in case of persistant contact)
     if IN ~= 0
         PNfull(IN)=PN;
-        LNfull(IN)=LN;
-        lnfull(IN)=ln;
         cnt=1;
         for jj = length(IN)
             PTfull(IN(jj)) = {PT(cnt:cnt+1)};
-            LTfull(IN(jj)) = {LT(cnt:cnt+1)};
-            ltfull(IN(jj)) = {lt(cnt:cnt+1)};
             cnt=cnt+2;
         end
     end
@@ -250,78 +194,10 @@ end
 
 end
 
-%% Matrix with force directions
-function [WN,WT] = CompW(AR_B,AR_C,vertices)
-% Compute the matrix containing the tangential force directions.
-tel = 1;
-for ii = 1:length(vertices(1,:))
-    w = (AR_C'*[AR_B -AR_B*hat(vertices(:,ii))])';
-    WN(:,ii) = w(:,3);
-    WT(:,tel:tel+1) = w(:,1:2);
-    tel = tel+2;
-end
-end
 
-%% Proximal point Normal
-function y=proxCN(x)
-% Proximal point formulation for CN. See thesis for reference.
-% prox_CN(x) = 0 for x=< 0
-%            = x for x > 0
-y=max(x,0);
-end
 
-%% Proximal point Tangential
-function y=proxCT(x,a)
-% Proximal point formulation for CT. See thesis for reference.
-%
-% prox_CT(x) = x           for ||x|| =< a
-%            = a*(x/||x||) for ||x||  > a
-% for CT = {x in R^n| ||x|| =< a}
-cnt = 1;
-for ii = 1:length(a) %For each point in contact
-    if norm(x(cnt:cnt+1)) <= a(ii)
-        y(cnt:cnt+1,1) = x(cnt:cnt+1); %Stick
-    else
-        y(cnt:cnt+1,1) = a(ii)*x(cnt:cnt+1)/norm(x(cnt:cnt+1)); %Slip
-    end
-    cnt = cnt+2;
-end
-end
 
-function res = hat(vec)
-% Take the 3- or 6-vector representing an isomorphism of so(3) or se(3) and
-% writes this as element of so(3) or se(3). 
-%
-% INPUTS:    vec     : 3- or 6-vector. Isomorphism of so(3) or se(3)
-%
-% OUTPUTS:   res     : element of so(3) or se(3)
-%
-%% Hat operator
-if length(vec) == 3
-    res = [0, -vec(3), vec(2); vec(3), 0, -vec(1); -vec(2), vec(1), 0];
-elseif length(vec) == 6
-    skew = [0, -vec(6), vec(5); vec(6), 0, -vec(4); -vec(5), vec(4), 0];
-    v = [vec(1);vec(2);vec(3)];
-    res = [skew, v; zeros(1,4)];
-end
-end
 
-function res = vee(mat)
-% Takes an element of so(3) or se(3) and returns its isomorphism in R^n.
-%
-% INPUTS:    mat     : element of so(3) or se(3)
-%
-% OUTPUTS:   res     : 3- or 6-vector. Isomorphism of so(3) or se(3)
-%
-%% Vee operator
 
-xi1 = (mat(3,2)-mat(2,3))/2;
-xi2 = (mat(1,3)-mat(3,1))/2;
-xi3 = (mat(2,1)-mat(1,2))/2;
 
-if length(mat) == 3
-   res = [xi1; xi2; xi3];
-elseif length(mat) == 4
-   res = [mat(1:3,4);xi1;xi2;xi3]; 
-end
-end
+

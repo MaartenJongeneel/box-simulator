@@ -34,6 +34,9 @@
 %            BV_AB               : 6x1xN double, left trivialized velocity of the box over time
 %            FN                  : Normal force acting on the box over time
 %            FT                  : Tangential force acting on the box over time
+%
+% Copyright (c) 2025, Maarten Jongeneel
+% All rights reserved.
 %% Constants and settings
 close all;clearvars;clc;
 g     = 9.81;                                 %Gravitational acceleration              [m/s^2]

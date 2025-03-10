@@ -56,9 +56,9 @@ In current form, the simulator allows you to simulate a single box being tossed 
 </div>
 
 # Installation
-The code of this repository is all written in MATLAB and can directly be cloned from this repository. To read the different scenes (see [here](/scenes/)), we make use of the [readyaml](https://github.com/MaartenJongeneel/readyaml) matlab function as a submodule. Therefore, to clone this repo, follow these steps:
-```
-git clone --recurse-submodules https://github.com/MaartenJongeneel/box-simulator.git
+The code of this repository is all written in MATLAB and can directly be cloned from this repository. To clone this repo, open a command window and type:
+```cmd
+git clone https://github.com/MaartenJongeneel/box-simulator.git
 ```
 
 # Usage of the scripts
@@ -77,37 +77,25 @@ MakeVideo          = false;         %Save the simulation result to video
 In the [scenes](/scenes) folder, some examples of scenes are provided. These scenes contain the information about the box and the surfaces that define the scene. In Matlab, these scenes are loaded via the following lines of code:
 ```matlab
 %% Read the scene that you want to run
-scenefile = "DoubleConveyor.yml";
-data = readyaml(scenefile);
+SingleConveyor;
+% DoubleConveyor;
 ```
-where the variable for `scenefile` should be changed in case a different scene should be run. 
+where the variable for `SingleConveyor` or `DoubleConveyor` should be commented/uncommented in case a different scene should be run. 
 ### Defining the Box
-In the scene file, you define the box object following this structure:
-```yaml
-# Parameters of the Box
-box:
- mass: 1
- dimensions: [0.1, 0.15, 0.05]
- inertia_tensor:
-  - [1, 0, 0, 0, 0, 0]
-  - [0, 1, 0, 0, 0, 0]
-  - [0, 0, 1, 0, 0, 0]
-  - [0, 0, 0, 0.0021, 0, 0]
-  - [0, 0, 0, 0, 0.001, 0]
-  - [0, 0, 0, 0, 0, 0.0027]
- release:
-  position: [0, 0, 0.2]
-  orientation:
-   - [1, 0, 0]
-   - [0, 1, 0]
-   - [0, 0, 1]
-  linVel: [0, 0, 0]
-  angVel: [3, 1, 0]
- parameters:
-  mu: 0.5
-  eN: 0.4
-  eT: 0.0
-discretization: 4
+In the scene file, say, `DoubleConveyor` you define the box object following this structure:
+```matlab
+%% Box release position
+box.release.orientation = eye(3);    %Release orientation of the box            [deg]
+box.release.position = [0 1.5 0.6];  %Release position of the box               [m]
+box.release.linVel = [0 0 0];        %Release linear velocity (expressed in B)  [m/s]
+box.release.angVel = [3 1 0];        %Release angular velocity (expressed in B) [rad/s]
+box.parameters.eN = 0.4;             %Normal coefficient of restitution         [-]
+box.parameters.eT = 0.0;             %Tangential coefficient of restitution     [-]s
+box.parameters.mu = 0.5;             %Coefficient of friction                   [-]
+box.mass = 1;                        %Box mass                                  [kg]
+box.dimensions = [0.1 0.15 0.05];    %Box dimensions                            [m]
+box.inertia_tensor = [eye(3), zeros(3,3); zeros(3,3), [0.0021, 0, 0; 0, 0.001, 0; 0, 0, 0.0027]];  %Box inertia tensor
+box.discretization = 4;              %Box discretization of the contact points  [-]
 ```
 You can set here the mass, dimensions, and the 6x6 generalized inertia tensor. Furthermore, you need to specify the release position, orientation (3x3 rotation matrix), and linear and angular velocity. The parameters `mu`, `eN`, and `eT` define the coefficient of friction, normal restitution, and tangential restitution, respectively. Finally, the `discretization` parameter defines in how many contact points you want to discretize the surfaces. For the values given above, the image below show the resulting box model, with the contact points indicated in blue (note that the `discretization` of `4` in this case leads to 4 contact points in each dimension on the surface of the box.).
 <div align="center">
@@ -120,15 +108,15 @@ You can set here the mass, dimensions, and the 6x6 generalized inertia tensor. F
 ### Defining contact surfaces
 The position and orientation of the contact surface are defined by the 4x4 transformation matrix, defining its position and orientation w.r.t. the world frame. The speed of the conveyor is defined in it's own frame in `m/s` (typically you would have this only in x- and y- direction, but sure, you can also put a z-velocity (out of plane).). The dimensions of the contact surface are in meters. In the yaml file that defines the scene, you can set these parameters. The example below shows how:
 
-```yaml
-surface:
- - dim: [1, 2]
-   speed: [0, 1, 0]
-   transform:
-    - [0.9962, 0, 0.0872, 0]
-    - [0.0151, 0.9848, -0.1730, 0.5]
-    - [-0.0858, 0.1736, 0.9811, 0]
-    - [0, 0, 0, 1]
+```matlab
+%% Environment
+surface{1}.dim = [1 1];              %Dimension of the surface                  [m]
+surface{1}.speed = [0; -1; 0];       %Speed of the surface                      [m/s]
+surface{1}.transform = [eye(3), [0; 1.5; 0.4]; zeros(1,3), 1]; %4x4 Transformation matrix 
+
+surface{2}.dim = [1 2];              %Dimension of the surface                  [m]
+surface{2}.speed = [0; -1; 0];       %Speed of the surface                      [m/s]
+surface{2}.transform = [Rz(30), [0; 0.5; 0]; zeros(1,3), 1]; %4x4 Transformation matrix 
 ```
 
 ## Simulation settings
