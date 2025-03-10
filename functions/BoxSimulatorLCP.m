@@ -91,6 +91,15 @@ for t = 1:N %For each time step
     
     %Compute the wrench at tM
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
+
+    %Update crossorter position and speed
+    for jj = 1:11
+        surface{29+jj}.transform = surface{29+jj}.transform*expm(hat([0;2.5;0;0;0;0]*c.dt));
+
+        if surface{29+jj}.transform(1,4)<-5 %If we passed the infeed zone, stop the crossbelt
+           surface{29+jj}.speed = [0; 2.5; 0];
+        end
+    end
     
     %And compute the gap-functions at tM column of normal contact distances
     gN=[];
@@ -126,21 +135,30 @@ for t = 1:N %For each time step
         Mu = diag(repmat(c.mu,1,nn));
 
         indx = gN<0;
-        WNAt =[]; WTAt=[]; WNMt=[]; WTMt=[]; WTA{1} = []; WTM=[];
+        WNAt =[]; WTAt=[]; WNMt=[]; WTMt=[];  WTM=[];
         for jj=1:length(surf)
+            WTA{jj} = [];
+            WTM{jj} = [];
+
             %Compute the matrix containing the normal and tangential force directions at tA and tM
-            [WNA{jj},~] = CompW(AR_B,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,indx(:,surf(jj))));
-            [WNM,~] = CompW(AR_Bm,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,indx(:,surf(jj))));
+            icp = indx(:,surf(jj)); %Indices of the box in contact with surface(jj)
+            cp = find(icp>0); %Find the contact point that is in contact with that surface
 
-            for ic =1:nn
-                WTA{jj} = [WTA{jj} [D*[AR_B -AR_B*hat(box.vertices(:,IN(ic)))]]'];
-                WTM = [WTM [D*[AR_Bm -AR_Bm*hat(box.vertices(:,IN(ic)))]]'];               
+            %So here we can compute them for all contact points at the time
+            %for each surface
+            [WNA{jj},~] = CompW(AR_B,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,icp));
+            [WNM,~] = CompW(AR_Bm,surface{surf(jj)}.transform(1:3,1:3),box.vertices(:,icp));
+
+            %Here, for each surface, we loop through the contact points
+            for ic =1:length(cp)
+               WTA{jj} = [WTA{jj} [D*[AR_B   -AR_B*hat(box.vertices(:,cp(ic)))]]'];
+               WTM{jj} = [WTM{jj} [D*[AR_Bm -AR_Bm*hat(box.vertices(:,cp(ic)))]]'];               
             end
-
+            
             WNAt = [WNAt WNA{jj}];
             WTAt = [WTAt WTA{jj}];
             WNMt = [WNMt WNM];
-            WTMt = [WTMt WTM];
+            WTMt = [WTMt WTM{jj}];
         end
 
         term1 = [hat(vA(4:6)), zeros(3); hat(vA(1:3)), hat(vA(4:6))]*M*vA*c.dt - B_fM*c.dt; 
@@ -148,17 +166,12 @@ for t = 1:N %For each time step
         %Define the normal and tangential velocities at tA and tM. We
         %substranct from the relative velocity the velocity of the
         %contact surface.
-        gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[];
-        for jj=1:length(surf)
-            speed = surface{surf(jj)}.speed';
+        gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[]; conv = [];
+        for jj=1:length(surf)            
             gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
-
-            %Define the tangential velocities at tA and tM
-            term2 = [];
-            for kk = 1:nn
-                term2 = [term2; D*surface{surf(jj)}.speed(1:3,1)];
-            end
-            gammaTA = [gammaTA; (WTA{jj}'*vA - term2)];
+            gammaTA = [gammaTA; WTA{jj}'*vA];
+            speed =surface{surf(jj)}.transform(1:3,1:3)*surface{surf(jj)}.speed;
+            conv = [conv; repmat(D*speed,sum(indx(:,surf(jj))),1)];            
         end
 
         % --------- OPTION C -----------%
@@ -170,8 +183,7 @@ for t = 1:N %For each time step
         G =  [WTMt'; WNMt'; zeros(nn,6)];
 
         %In the vector below, the restitution parameters appear (not sure this is correct)
-%         v = [-c.eT*WTAt'*vA; -c.eN*WNAt'*vA; zeros(nn,1)];
-        v = [-c.eT*gammaTA; -c.eN*gammaNA; zeros(nn,1)];
+        v = [-c.eT*gammaTA+conv; -c.eN*gammaNA; zeros(nn,1)];
         u = M*vA-term1;
 
         A = C + G/M*G';

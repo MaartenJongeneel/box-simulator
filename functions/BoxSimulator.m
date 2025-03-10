@@ -69,6 +69,8 @@ AH_B(:,:,1) = [AR_B, Ao_B; zeros(1,3), 1]; %Homogeneous transformation matrix
 %Initial left trivialized velocity of frame B w.r.t. frame A
 BV_AB(:,1) = [Bv_AB; Bomg_AB];
 
+%%
+% for ii = 1:length(AH_B_fp); xi(:,ii) = vee(logm(AH_B_fp(1:3,1:3,ii))); end
 %% Dynamics
 
 for ii=1:N
@@ -83,6 +85,15 @@ for ii=1:N
     
     %Compute the wrench at tM
     B_fM = ([AR_Bm zeros(3); zeros(3) AR_Bm])'*BA_f;
+
+    %Update crossorter position and speed
+    for jj = 1:11
+        surface{29+jj}.transform = surface{29+jj}.transform*expm(hat([0;2.5;0;0;0;0]*c.dt));
+
+        if surface{29+jj}.transform(1,4)<-5 %If we passed the infeed zone, stop the crossbelt
+           surface{29+jj}.speed = [0; 2.5; 0];
+        end
+    end
 
     %And compute the gap-functions at tM column of normal contact distances
     gN=[];
