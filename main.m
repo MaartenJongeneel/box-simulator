@@ -17,7 +17,7 @@ c.tol                = 1e-7;            %Error tol for fixed-point              
 c.m                  = 1;               %Mass of the box                           [kg]  
 c.endtime            = 5;             %Runtime of the simulation                 [s]
 c.dt                 = 1/100;          %Timestep at which the simulator runs      [s]
-c.dimd               = 4;              %Discretization of the friction cone
+c.dimd               = 8;              %Discretization of the friction cone
 step                 = ceil(1/c.dt/50); %Number of discrete points we skip per shown frame
 %% Read the scene data
 x.releaseOrientation = box.release.orientation;  %Release orientation of the box            [deg]

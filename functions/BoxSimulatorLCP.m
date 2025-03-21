@@ -162,11 +162,14 @@ for t = 1:N %For each time step
         %contact surface.
         gammaNA=[]; gammaNE=[]; gammaTA=[]; gammaTE=[]; conv = [];
         for jj=1:length(surf)      
-            gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
-            gammaTA = [gammaTA; WTA{jj}'*vA];
+            % gammaNA = [gammaNA; (WNA{jj}'*vA-repmat(surface{surf(jj)}.speed(3,1),sum(indx(:,surf(jj))),1))];
+            % gammaTA = [gammaTA; WTA{jj}'*vA];
             speed =surface{surf(jj)}.transform(1:3,1:3)*surface{surf(jj)}.speed;
             conv = [conv; repmat(D*speed,sum(indx(:,surf(jj))),1)];            
         end
+
+        gammaNA = WNAt'*vA;
+        gammaTA = WTAt'*vA;
 
         %Setup the matrices for the LCP (See Claude's thesis, page 128)
         C =[0*diag(ones(1,nn*dimd)), zeros(nn*dimd,nn),  E(1:nn*dimd,1:nn);
