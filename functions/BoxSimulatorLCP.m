@@ -107,10 +107,15 @@ for t = 1:N %For each time step
 
         %If the object is outside the plane area or underneath it, we do
         %not take it into account in solving the contact problem
-        if (~isempty(vert_o)) 
-            gN(vert_o,jj)=0;
-        elseif (all(gN(:,jj)<0))
+        % if (~isempty(vert_o)) 
+        %     gN(vert_o,jj)=0;
+        % elseif (all(gN(:,jj)<0))
+        %     gN(:,jj)=0;
+        % end
+        if (all(gN(:,jj)<0))
             gN(:,jj)=0;
+        elseif (~isempty(vert_o)) 
+            gN(vert_o,jj)=0;
         end
     end
        
